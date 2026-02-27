@@ -74,6 +74,7 @@ from contextlib import contextmanager
 from io import BytesIO
 import logging
 import os
+import socket
 import struct
 import sys
 from threading import Lock
@@ -262,13 +263,38 @@ class _AdbIOManager(object):
 
             if auth_callback is not None:
                 auth_callback(self)
+            # With the above in mind, need to decent enough way to distiguish if a timeout is occuring due to invalid keys 
+            # Or an auth issue. Here, a preflight liveliness check is preformed 
+            # If that passes, then the auth attempt will be made else a timeout exception will be raised. 
+            # Additionally, adding a new exception to raise in leu of a generic timeout exception. 
+            preflight_timeout = self.is_port_timeout(self._transport._host,self._transport._port,auth_timeout_s)
+            if preflight_timeout:
+                raise exceptions.TcpTimeoutException("Preflight check indicated likely timeout")
+            else:
+                try:
+                    msg = AdbMessage(constants.AUTH, constants.AUTH_RSAPUBLICKEY, 0, pubkey + b'\0')
+                    self._send(msg, adb_info)
 
-            msg = AdbMessage(constants.AUTH, constants.AUTH_RSAPUBLICKEY, 0, pubkey + b'\0')
-            self._send(msg, adb_info)
+                    adb_info.transport_timeout_s = auth_timeout_s
+                    _, _, maxdata, _ = self._read_expected_packet_from_device([constants.CNXN], adb_info)
+                    return True, maxdata
+                except:
+                    raise exceptions.InvalidAuthKey("Probable invalid auth key provided")
 
-            adb_info.transport_timeout_s = auth_timeout_s
-            _, _, maxdata, _ = self._read_expected_packet_from_device([constants.CNXN], adb_info)
-            return True, maxdata
+    @staticmethod
+    def is_port_timeout(host, port, timeout=2):
+        """ preflight port timeout condition to aid in determining regular timeout vs auth timeout"""
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(timeout)
+        try:
+            sock.connect((host, port))
+            sock.close()
+            return False  # Connection successful
+        except socket.timeout:
+            return True  # Timeout occurred
+        except Exception:
+            return False  # Other error (port closed, etc.)
+
 
     def read(self, expected_cmds, adb_info, allow_zeros=False):
         """Read packets from the device until we get an expected packet type.
