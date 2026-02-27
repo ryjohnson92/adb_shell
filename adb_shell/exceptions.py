@@ -87,6 +87,8 @@ class PushFailedError(Exception):
 
     """
 
+class TCPException(Exception):
+    """ Catch all for other preflight socket errors"""
 
 class TcpTimeoutException(Exception):
     """TCP connection timed read/write operation exceeded the allowed time.
