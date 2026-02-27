@@ -289,11 +289,11 @@ class _AdbIOManager(object):
         try:
             sock.connect((host, port))
             sock.close()
-            return False  # Connection successful
+            return False  
         except socket.timeout:
-            return True  # Timeout occurred
-        except Exception:
-            return False  # Other error (port closed, etc.)
+            return True  
+        except Exception as err:
+            raise exceptions.TCPException(str(err))
 
 
     def read(self, expected_cmds, adb_info, allow_zeros=False):
