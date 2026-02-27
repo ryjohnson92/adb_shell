@@ -28,6 +28,8 @@ class AdbCommandFailureException(Exception):
 
     """
 
+class InvalidAuthKey(Exception):
+    """ Preflight determined that the port responded but auth key is likely incorrect"""
 
 class AdbConnectionError(Exception):
     """ADB command not sent because a connection to the device has not been established.
